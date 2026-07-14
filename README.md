@@ -36,11 +36,8 @@ Gold層
 | 5 ※オプション | `05_extract_pdf_text.sql` | ステージ上の PDF から AI_PARSE_DOCUMENT でテキスト抽出 |
 | 6 | `06_create_dynamic_tables_gold.sql` | Dynamic Tables（`GOLD_CONTRACTS` / `GOLD_PAYMENT_SUMMARY`）作成 |
 | 7 | `07_update_semantic_view.sql` | Semantic View を Gold 層参照に更新（パフォーマンス向上） |
-| 8 ※上級 | `08_register_external_lineage.sql` | 外部システム（PostgreSQL / SharePoint）のリネージ手動登録（要 ACCOUNTADMIN） |
 
 > **ステップ5について**: `pdfs/` フォルダのサンプルPDF（110件）をステージ `CONTRACT_PDF_STAGE_UNENC` にアップロードした後に実行してください。PDF なしの場合はスキップできます。
->
-> **ステップ8について**: Horizon Catalog に外部システムのリネージを登録するデモ用スクリプトです。ACCOUNTADMIN ロールが必要です。
 
 ## サンプル PDF
 
