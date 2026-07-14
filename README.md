@@ -38,9 +38,32 @@ Gold層
 | 7 | `07_update_semantic_view.sql` | Semantic View を Gold 層参照に更新（パフォーマンス向上） |
 | 8 ※上級 | `08_register_external_lineage.sql` | 外部システム（PostgreSQL / SharePoint）のリネージ手動登録（要 ACCOUNTADMIN） |
 
-> **ステップ5について**: PDF ファイルをステージ `CONTRACT_PDF_STAGE_UNENC` にアップロードした後に実行してください。PDF なしの場合はスキップできます。
+> **ステップ5について**: `pdfs/` フォルダのサンプルPDF（110件）をステージ `CONTRACT_PDF_STAGE_UNENC` にアップロードした後に実行してください。PDF なしの場合はスキップできます。
 >
 > **ステップ8について**: Horizon Catalog に外部システムのリネージを登録するデモ用スクリプトです。ACCOUNTADMIN ロールが必要です。
+
+## サンプル PDF
+
+`pdfs/` フォルダに Cortex Search のハンズオン（ステップ5）で使用するサンプル PDF を同梱しています。
+
+| フォルダ | 内容 | 件数 |
+|---|---|---|
+| `lease_contracts/` | リース契約書 | 20件 |
+| `vehicle_delivery/` | 車両引渡書 | 20件 |
+| `maintenance_contracts/` | メンテナンス契約書 | 20件 |
+| `insurance_certificates/` | 保険証券 | 20件 |
+| `amendment_agreements/` | リース変更合意書 | 20件 |
+| `irregular/` | 特殊条件契約書（中途解約・走行距離制限・EV充電設備等） | 10件 |
+
+ステージへのアップロード例：
+
+```sql
+-- ステージ作成
+CREATE STAGE IF NOT EXISTS DEMO_DB.LEASING.CONTRACT_PDF_STAGE_UNENC;
+
+-- PDF をローカルからアップロード（SnowSQL または Snowsight Files タブから）
+PUT file:///path/to/pdfs/*.pdf @DEMO_DB.LEASING.CONTRACT_PDF_STAGE_UNENC AUTO_COMPRESS=FALSE;
+```
 
 ## Cortex Code を使ったインタラクティブなハンズオン
 
