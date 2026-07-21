@@ -1,23 +1,24 @@
 -- ================================================================================
--- 実行順序: 06（05_extract_pdf_text.sql の後に実行）
+-- リース契約分析基盤 — Gold層 Dynamic Tables 作成
+-- 実行順序: 05（04_create_cortex_search.sql の後に実行）
 -- 目的:     Gold層 Dynamic Table の作成
 --           - GOLD_CONTRACTS: 契約・顧客・車両を結合したリース契約分析用テーブル
 --           - GOLD_PAYMENT_SUMMARY: 契約別支払いサマリー
 -- 前提:     以下のテーブルが存在すること
---           DEMO_DB.LEASING.CONTRACTS / CUSTOMERS / VEHICLES / PAYMENTS
+--           HOL_DB.LEASING.CONTRACTS / CUSTOMERS / VEHICLES / PAYMENTS
 -- ================================================================================
 
 USE ROLE SYSADMIN;
-USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
-USE SCHEMA DEMO_DB.LEASING;
+USE WAREHOUSE HOL_AD_WH;
+USE SCHEMA HOL_DB.LEASING;
 
 -- ============================================================
 -- 1. GOLD_CONTRACTS
 --    契約・顧客・車両を結合したリース契約分析用テーブル
 -- ============================================================
-CREATE OR REPLACE DYNAMIC TABLE DEMO_DB.LEASING.GOLD_CONTRACTS
+CREATE OR REPLACE DYNAMIC TABLE HOL_DB.LEASING.GOLD_CONTRACTS
   TARGET_LAG = '1 hour'
-  WAREHOUSE = DEMO_WH
+  WAREHOUSE = HOL_AD_WH
   COMMENT = 'Gold層: 契約・顧客・車両を結合したリース契約分析用テーブル'
 AS
 SELECT
@@ -51,17 +52,17 @@ SELECT
     v.VEHICLE_PRICE,
     v.YEAR_MODEL,
     v.ENGINE_DISPLACEMENT
-FROM DEMO_DB.LEASING.CONTRACTS c
-JOIN DEMO_DB.LEASING.CUSTOMERS cu ON c.CUSTOMER_ID = cu.CUSTOMER_ID
-JOIN DEMO_DB.LEASING.VEHICLES v ON c.VEHICLE_ID = v.VEHICLE_ID;
+FROM HOL_DB.LEASING.CONTRACTS c
+JOIN HOL_DB.LEASING.CUSTOMERS cu ON c.CUSTOMER_ID = cu.CUSTOMER_ID
+JOIN HOL_DB.LEASING.VEHICLES v ON c.VEHICLE_ID = v.VEHICLE_ID;
 
 -- ============================================================
 -- 2. GOLD_PAYMENT_SUMMARY
 --    契約別支払いサマリー（PAYMENTS を CONTRACT_ID で集計）
 -- ============================================================
-CREATE OR REPLACE DYNAMIC TABLE DEMO_DB.LEASING.GOLD_PAYMENT_SUMMARY
+CREATE OR REPLACE DYNAMIC TABLE HOL_DB.LEASING.GOLD_PAYMENT_SUMMARY
   TARGET_LAG = '1 hour'
-  WAREHOUSE = DEMO_WH
+  WAREHOUSE = HOL_AD_WH
   COMMENT = 'Gold層: 契約別支払いサマリー'
 AS
 SELECT
@@ -73,7 +74,7 @@ SELECT
     SUM(CASE WHEN PAYMENT_STATUS = 'pending' THEN 1 ELSE 0 END)    AS PENDING_COUNT,
     MAX(PAYMENT_DATE)                                               AS LAST_PAYMENT_DATE,
     SUM(CASE WHEN PAYMENT_STATUS = 'overdue' THEN PAYMENT_AMOUNT ELSE 0 END) AS OVERDUE_AMOUNT
-FROM DEMO_DB.LEASING.PAYMENTS
+FROM HOL_DB.LEASING.PAYMENTS
 GROUP BY CONTRACT_ID;
 
 -- ============================================================
@@ -81,14 +82,14 @@ GROUP BY CONTRACT_ID;
 -- ============================================================
 
 -- Dynamic Table の一覧確認
-SHOW DYNAMIC TABLES LIKE 'GOLD_%' IN SCHEMA DEMO_DB.LEASING;
+SHOW DYNAMIC TABLES LIKE 'GOLD_%' IN SCHEMA HOL_DB.LEASING;
 
 -- GOLD_CONTRACTS の件数確認
-SELECT COUNT(*) AS contract_count FROM DEMO_DB.LEASING.GOLD_CONTRACTS;
+SELECT COUNT(*) AS contract_count FROM HOL_DB.LEASING.GOLD_CONTRACTS;
 
 -- GOLD_PAYMENT_SUMMARY の件数確認
-SELECT COUNT(*) AS payment_summary_count FROM DEMO_DB.LEASING.GOLD_PAYMENT_SUMMARY;
+SELECT COUNT(*) AS payment_summary_count FROM HOL_DB.LEASING.GOLD_PAYMENT_SUMMARY;
 
 -- サンプルデータ確認
-SELECT * FROM DEMO_DB.LEASING.GOLD_CONTRACTS        LIMIT 5;
-SELECT * FROM DEMO_DB.LEASING.GOLD_PAYMENT_SUMMARY  LIMIT 5;
+SELECT * FROM HOL_DB.LEASING.GOLD_CONTRACTS        LIMIT 5;
+SELECT * FROM HOL_DB.LEASING.GOLD_PAYMENT_SUMMARY  LIMIT 5;

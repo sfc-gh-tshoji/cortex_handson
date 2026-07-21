@@ -2,30 +2,33 @@
 -- リース契約分析基盤 — スキーマ・テーブル定義
 -- ================================================================================
 -- 実行順序:
---   01_create_schema_tables.sql    : スキーマ・テーブル作成
---   02_insert_sample_data.sql      : サンプルデータ投入
---   03_create_cortex_search.sql    : Cortex Search Service作成
---   04_create_semantic_view_agent.sql : Semantic View + Agent作成
+--   01_create_schema_tables.sql       : スキーマ・テーブル作成
+--   02_insert_sample_data.sql         : サンプルデータ投入
+--   03_extract_pdf_text.sql           : PDFテキスト抽出・CONTRACT_DOCUMENTSデータ投入
+--   04_create_cortex_search.sql       : Cortex Search Service作成
+--   05_create_semantic_view_agent.sql : Semantic View + Agent作成
+--   06_create_dynamic_tables_gold.sql : Gold層 Dynamic Table作成
+--   07_update_semantic_view.sql       : Semantic View更新（Gold層参照）
 -- ================================================================================
 
 USE ROLE SYSADMIN;
-USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
+USE WAREHOUSE HOL_AD_WH;
 
 -- ============================================================
 -- 1. DB, スキーマ作成
 -- ============================================================
-CREATE DATABASE IF NOT EXISTS DEMO_DB
+CREATE DATABASE IF NOT EXISTS HOL_DB
   COMMENT = 'リース事業分析ハンズオン用データベース';
 
-CREATE SCHEMA IF NOT EXISTS DEMO_DB.LEASING
+CREATE SCHEMA IF NOT EXISTS HOL_DB.LEASING
   COMMENT = 'リース事業分析ハンズオン用スキーマ';
 
-USE SCHEMA DEMO_DB.LEASING;
+USE SCHEMA HOL_DB.LEASING;
 
 -- ============================================================
 -- 2. 法人顧客マスタ
 -- ============================================================
-CREATE OR REPLACE TABLE DEMO_DB.LEASING.CUSTOMERS (
+CREATE OR REPLACE TABLE HOL_DB.LEASING.CUSTOMERS (
     CUSTOMER_ID         VARCHAR(20)     NOT NULL PRIMARY KEY,
     COMPANY_NAME        VARCHAR(200)    NOT NULL,
     INDUSTRY            VARCHAR(50)     COMMENT '業種',
@@ -43,7 +46,7 @@ COMMENT = 'リース契約の法人顧客マスタ';
 -- ============================================================
 -- 3. 車両マスタ
 -- ============================================================
-CREATE OR REPLACE TABLE DEMO_DB.LEASING.VEHICLES (
+CREATE OR REPLACE TABLE HOL_DB.LEASING.VEHICLES (
     VEHICLE_ID          VARCHAR(20)     NOT NULL PRIMARY KEY,
     MANUFACTURER        VARCHAR(50)     COMMENT 'メーカー',
     MODEL_NAME          VARCHAR(100)    COMMENT 'モデル名',
@@ -59,7 +62,7 @@ COMMENT = 'リース対象の車両マスタ';
 -- ============================================================
 -- 4. リース契約テーブル
 -- ============================================================
-CREATE OR REPLACE TABLE DEMO_DB.LEASING.CONTRACTS (
+CREATE OR REPLACE TABLE HOL_DB.LEASING.CONTRACTS (
     CONTRACT_ID         VARCHAR(20)     NOT NULL PRIMARY KEY,
     CUSTOMER_ID         VARCHAR(20)     NOT NULL,
     VEHICLE_ID          VARCHAR(20)     NOT NULL,
@@ -79,7 +82,7 @@ COMMENT = 'リース契約テーブル';
 -- ============================================================
 -- 5. 支払い履歴テーブル
 -- ============================================================
-CREATE OR REPLACE TABLE DEMO_DB.LEASING.PAYMENTS (
+CREATE OR REPLACE TABLE HOL_DB.LEASING.PAYMENTS (
     PAYMENT_ID          VARCHAR(30)     NOT NULL PRIMARY KEY,
     CONTRACT_ID         VARCHAR(20)     NOT NULL,
     PAYMENT_DATE        DATE            NOT NULL COMMENT '支払日',
@@ -93,7 +96,7 @@ COMMENT = 'リース契約の月次支払い履歴';
 -- ============================================================
 -- 6. 契約書ドキュメント（Cortex Search用）
 -- ============================================================
-CREATE OR REPLACE TABLE DEMO_DB.LEASING.CONTRACT_DOCUMENTS (
+CREATE OR REPLACE TABLE HOL_DB.LEASING.CONTRACT_DOCUMENTS (
     DOCUMENT_ID         VARCHAR(20)     NOT NULL PRIMARY KEY,
     CONTRACT_ID         VARCHAR(20)     COMMENT '関連契約番号',
     CUSTOMER_NAME       VARCHAR(200)    COMMENT '顧客名',

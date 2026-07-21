@@ -5,18 +5,17 @@
 --   CUSTOMERS:          30,000社
 --   VEHICLES:           20,000種
 --   CONTRACTS:         200,000件
---   PAYMENTS:        ~2,400,000件
---   CONTRACT_DOCUMENTS:  10,000件
+--   PAYMENTS:        ~6,800,000件
 -- ================================================================================
 
 USE ROLE SYSADMIN;
-USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
-USE SCHEMA DEMO_DB.LEASING;
+USE WAREHOUSE HOL_AD_WH;
+USE SCHEMA HOL_DB.LEASING;
 
 -- ============================================================
 -- 1. 法人顧客マスタ（30,000社）
 -- ============================================================
-INSERT INTO DEMO_DB.LEASING.CUSTOMERS
+INSERT INTO HOL_DB.LEASING.CUSTOMERS
 (CUSTOMER_ID, COMPANY_NAME, INDUSTRY, PREFECTURE, CITY, ESTABLISHED_YEAR, EMPLOYEE_COUNT, ANNUAL_REVENUE_CLASS, CONTACT_NAME, CONTACT_EMAIL)
 SELECT
     'C' || LPAD(SEQ4()::VARCHAR, 6, '0') AS CUSTOMER_ID,
@@ -110,7 +109,7 @@ FROM TABLE(GENERATOR(ROWCOUNT => 30000));
 -- ============================================================
 -- 2. 車両マスタ（20,000種）
 -- ============================================================
-INSERT INTO DEMO_DB.LEASING.VEHICLES
+INSERT INTO HOL_DB.LEASING.VEHICLES
 (VEHICLE_ID, MANUFACTURER, MODEL_NAME, VEHICLE_TYPE, ENGINE_DISPLACEMENT, VEHICLE_PRICE, FUEL_TYPE, YEAR_MODEL)
 SELECT
     'V' || LPAD(SEQ4()::VARCHAR, 6, '0') AS VEHICLE_ID,
@@ -182,7 +181,7 @@ FROM TABLE(GENERATOR(ROWCOUNT => 20000));
 -- ============================================================
 -- 3. リース契約（200,000件）
 -- ============================================================
-INSERT INTO DEMO_DB.LEASING.CONTRACTS
+INSERT INTO HOL_DB.LEASING.CONTRACTS
 (CONTRACT_ID, CUSTOMER_ID, VEHICLE_ID, CONTRACT_TYPE, CONTRACT_START_DATE, CONTRACT_END_DATE,
  LEASE_TERM_MONTHS, MONTHLY_LEASE_AMOUNT, TOTAL_LEASE_AMOUNT, RESIDUAL_VALUE, STATUS, BRANCH_OFFICE)
 WITH base AS (
@@ -243,7 +242,7 @@ FROM base;
 -- 4. 支払い履歴（〜6,800,000件）
 -- 月次カレンダーとJOINして各契約の支払い期間分のレコードを生成
 -- ============================================================
-INSERT INTO DEMO_DB.LEASING.PAYMENTS
+INSERT INTO HOL_DB.LEASING.PAYMENTS
 (PAYMENT_ID, CONTRACT_ID, PAYMENT_DATE, PAYMENT_AMOUNT, PAYMENT_STATUS, PAYMENT_METHOD)
 WITH months AS (
     -- 2020-01 〜 2026-03 の月次カレンダー（75ヶ月分）
@@ -269,111 +268,8 @@ SELECT
         WHEN 5 THEN 'クレジット'
         ELSE '口座振替'
     END AS PAYMENT_METHOD
-FROM DEMO_DB.LEASING.CONTRACTS c
+FROM HOL_DB.LEASING.CONTRACTS c
 JOIN months m
     ON m.month_date >= c.CONTRACT_START_DATE
     AND m.month_date <= LEAST(CURRENT_DATE(), c.CONTRACT_END_DATE)
 WHERE c.STATUS IN ('active', 'completed', 'terminated');
-
--- ============================================================
--- 5. 契約書ドキュメント（10,000件 — Cortex Search用）
--- ============================================================
-INSERT INTO DEMO_DB.LEASING.CONTRACT_DOCUMENTS
-(DOCUMENT_ID, CONTRACT_ID, CUSTOMER_NAME, DOCUMENT_TYPE, CONTENT)
-WITH sample_contracts AS (
-    SELECT c.CONTRACT_ID, c.CONTRACT_TYPE, c.CONTRACT_START_DATE, c.CONTRACT_END_DATE,
-           c.MONTHLY_LEASE_AMOUNT, c.TOTAL_LEASE_AMOUNT, c.RESIDUAL_VALUE,
-           cust.COMPANY_NAME,
-           v.MANUFACTURER, v.MODEL_NAME, v.VEHICLE_TYPE, v.ENGINE_DISPLACEMENT,
-           v.FUEL_TYPE, v.YEAR_MODEL, v.VEHICLE_PRICE
-    FROM DEMO_DB.LEASING.CONTRACTS c
-    JOIN DEMO_DB.LEASING.CUSTOMERS cust ON cust.CUSTOMER_ID = c.CUSTOMER_ID
-    JOIN DEMO_DB.LEASING.VEHICLES v ON v.VEHICLE_ID = c.VEHICLE_ID
-    LIMIT 10000
-)
-SELECT
-    'DOC' || LPAD(ROW_NUMBER() OVER (ORDER BY sc.CONTRACT_ID)::VARCHAR, 7, '0') AS DOCUMENT_ID,
-    sc.CONTRACT_ID,
-    sc.COMPANY_NAME AS CUSTOMER_NAME,
-    CASE MOD(ROW_NUMBER() OVER (ORDER BY sc.CONTRACT_ID), 5)
-        WHEN 0 THEN 'リース契約書'
-        WHEN 1 THEN '車両引渡書'
-        WHEN 2 THEN 'メンテナンス契約書'
-        WHEN 3 THEN '保険証券'
-        ELSE 'リース変更合意書'
-    END AS DOCUMENT_TYPE,
-    CASE MOD(ROW_NUMBER() OVER (ORDER BY sc.CONTRACT_ID), 5)
-        WHEN 0 THEN
-            '【リース契約書】' || CHR(10) ||
-            '契約番号: ' || sc.CONTRACT_ID || CHR(10) ||
-            '賃借人: ' || sc.COMPANY_NAME || CHR(10) ||
-            '賃貸人: サンプルリース株式会社' || CHR(10) ||
-            '契約種別: ' || sc.CONTRACT_TYPE || CHR(10) ||
-            '対象車両: ' || sc.MANUFACTURER || ' ' || sc.MODEL_NAME || '（' || sc.VEHICLE_TYPE || '）' || CHR(10) ||
-            '契約期間: ' || sc.CONTRACT_START_DATE::VARCHAR || ' 〜 ' || sc.CONTRACT_END_DATE::VARCHAR || CHR(10) ||
-            '月額リース料: ' || sc.MONTHLY_LEASE_AMOUNT::VARCHAR || '円（税別）' || CHR(10) ||
-            'リース料総額: ' || sc.TOTAL_LEASE_AMOUNT::VARCHAR || '円（税別）' || CHR(10) ||
-            '残存価額: ' || sc.RESIDUAL_VALUE::VARCHAR || '円' || CHR(10) ||
-            CHR(10) ||
-            '第1条（目的）本契約は、賃貸人が賃借人に対し、上記車両をリースすることを目的とする。' || CHR(10) ||
-            '第2条（リース料）賃借人は、毎月末日までに翌月分のリース料を支払うものとする。' || CHR(10) ||
-            '第3条（保険）賃貸人は、対象車両について自動車保険に加入する。保険料はリース料に含まれる。' || CHR(10) ||
-            '第4条（メンテナンス）定期点検・整備は賃借人の責任において実施するものとする。' || CHR(10) ||
-            '第5条（解約）契約期間中の中途解約は、残リース料相当額の違約金を支払うことにより可能とする。'
-        WHEN 1 THEN
-            '【車両引渡書】' || CHR(10) ||
-            '契約番号: ' || sc.CONTRACT_ID || CHR(10) ||
-            '引渡先: ' || sc.COMPANY_NAME || CHR(10) ||
-            '車両情報: ' || sc.MANUFACTURER || ' ' || sc.MODEL_NAME || CHR(10) ||
-            '車種区分: ' || sc.VEHICLE_TYPE || CHR(10) ||
-            '排気量: ' || sc.ENGINE_DISPLACEMENT::VARCHAR || 'cc' || CHR(10) ||
-            '燃料: ' || sc.FUEL_TYPE || CHR(10) ||
-            '年式: ' || sc.YEAR_MODEL::VARCHAR || '年' || CHR(10) ||
-            '車両価格: ' || sc.VEHICLE_PRICE::VARCHAR || '円' || CHR(10) ||
-            CHR(10) ||
-            '上記車両を良好な状態で引き渡したことを確認します。' || CHR(10) ||
-            '引渡日における走行距離: 0km' || CHR(10) ||
-            '外装・内装の状態: 良好（新車）' || CHR(10) ||
-            '付属品: 車検証、取扱説明書、スペアキー、工具一式'
-        WHEN 2 THEN
-            '【メンテナンス契約書】' || CHR(10) ||
-            '契約番号: ' || sc.CONTRACT_ID || CHR(10) ||
-            '契約者: ' || sc.COMPANY_NAME || CHR(10) ||
-            '対象車両: ' || sc.MANUFACTURER || ' ' || sc.MODEL_NAME || CHR(10) ||
-            CHR(10) ||
-            '本メンテナンス契約により、以下のサービスを提供します。' || CHR(10) ||
-            '1. 定期点検（12ヶ月点検、24ヶ月点検）' || CHR(10) ||
-            '2. エンジンオイル交換（5,000km毎または6ヶ月毎）' || CHR(10) ||
-            '3. タイヤ交換（摩耗時）' || CHR(10) ||
-            '4. バッテリー交換（劣化時）' || CHR(10) ||
-            '5. ブレーキパッド交換' || CHR(10) ||
-            '6. 車検代行' || CHR(10) ||
-            '7. 24時間ロードサービス' || CHR(10) ||
-            '※ 事故修理、改造、カスタマイズは本契約の対象外です。'
-        WHEN 3 THEN
-            '【自動車保険証券】' || CHR(10) ||
-            '契約番号: ' || sc.CONTRACT_ID || CHR(10) ||
-            '被保険者: ' || sc.COMPANY_NAME || CHR(10) ||
-            '対象車両: ' || sc.MANUFACTURER || ' ' || sc.MODEL_NAME || CHR(10) ||
-            CHR(10) ||
-            '保険種別: 自動車総合保険' || CHR(10) ||
-            '対人賠償: 無制限' || CHR(10) ||
-            '対物賠償: 無制限' || CHR(10) ||
-            '車両保険: ' || sc.VEHICLE_PRICE::VARCHAR || '円（時価額）' || CHR(10) ||
-            '人身傷害: 3,000万円' || CHR(10) ||
-            '保険期間: ' || sc.CONTRACT_START_DATE::VARCHAR || ' 〜 ' || sc.CONTRACT_END_DATE::VARCHAR || CHR(10) ||
-            '特約: 弁護士費用特約、ロードアシスタンス特約、代車費用特約'
-        ELSE
-            '【リース変更合意書】' || CHR(10) ||
-            '契約番号: ' || sc.CONTRACT_ID || CHR(10) ||
-            '賃借人: ' || sc.COMPANY_NAME || CHR(10) ||
-            '賃貸人: サンプルリース株式会社' || CHR(10) ||
-            CHR(10) ||
-            '原契約に基づくリース条件を以下の通り変更することに合意します。' || CHR(10) ||
-            '変更前月額リース料: ' || sc.MONTHLY_LEASE_AMOUNT::VARCHAR || '円' || CHR(10) ||
-            '変更後月額リース料: ' || ROUND(sc.MONTHLY_LEASE_AMOUNT * 0.95)::VARCHAR || '円' || CHR(10) ||
-            '変更理由: 契約更新に伴う料率見直し' || CHR(10) ||
-            '適用開始日: ' || DATEADD('year', 1, sc.CONTRACT_START_DATE)::VARCHAR || CHR(10) ||
-            '※ その他の契約条件は原契約の定めに従うものとします。'
-    END AS CONTENT
-FROM sample_contracts sc;

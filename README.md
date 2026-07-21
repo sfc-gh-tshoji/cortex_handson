@@ -1,81 +1,91 @@
 # Cortex Handson — リース事業分析基盤
 
-Snowflake Cortex の主要機能（Dynamic Tables・Semantic View・Cortex Search・Cortex Agent）を使って、リース事業分析基盤を構築するハンズオンです。
+Snowflake Cortex の主要機能（Cortex Search・Dynamic Tables・Semantic View・Cortex Agent）を使って、リース事業分析基盤を構築するハンズオンです。
 
 ## アーキテクチャ
 
 ```
 Bronze層（生テーブル）
-  CUSTOMERS / VEHICLES / CONTRACTS / PAYMENTS / CONTRACT_DOCUMENTS
+  CUSTOMERS / VEHICLES / CONTRACTS / PAYMENTS
         ↓ Dynamic Tables
 Gold層
-  GOLD_CONTRACTS / GOLD_PAYMENT_SUMMARY
+  GOLD_CONTRACTS（契約・顧客・車両 結合済み）
+  GOLD_PAYMENT_SUMMARY（契約別支払いサマリー）
         ↓
   LEASE_ANALYTICS（Semantic View）  +  SEARCH_CONTRACT_DOCS（Cortex Search）
         ↓
   LEASE_ANALYST（Cortex Agent）
+
+別ライン: CONTRACTS_PDF_STAGE（PDF）→ PARSE_DOCUMENT → CONTRACT_DOCUMENTS → SEARCH_CONTRACT_DOCS
 ```
 
 ## 前提条件
 
 - Snowflake アカウント（Enterprise 以上）
 - SYSADMIN ロール
-- ウェアハウス `DEMO_WH`（任意の名前で作成可。スクリプト内の `DEMO_WH` を置き換えてください）
-- データベース `DEMO_DB`（事前に作成しておくか、スクリプト冒頭に `CREATE DATABASE IF NOT EXISTS DEMO_DB;` を追加してください）
+- ウェアハウス `HOL_AD_WH`（Adaptive Warehouse）
+- データベース `HOL_DB` / スキーマ `HOL_DB.LEASING`
 
 ## セットアップ手順
 
-`sql/` フォルダ内のスクリプトを番号順に Snowsight または SnowSQL で実行します。
+`setup_hol.sql` を先に実行して環境を準備した後、`sql/` フォルダ内のスクリプトを番号順に実行します。
 
 | ステップ | ファイル | 内容 |
 |---|---|---|
-| 1 | `01_create_schema_tables.sql` | スキーマ・テーブル（5テーブル）作成 |
-| 2 | `02_insert_sample_data.sql` | サンプルデータ投入（顧客3万社・車両2万種・契約20万件ほか） |
-| 3 | `03_create_cortex_search.sql` | Cortex Search Service（`SEARCH_CONTRACT_DOCS`）作成 |
-| 4 | `04_create_semantic_view_agent.sql` | Semantic View（`LEASE_ANALYTICS`）＋ Cortex Agent（`LEASE_ANALYST`）作成 |
-| 5 ※オプション | `05_extract_pdf_text.sql` | ステージ上の PDF から AI_PARSE_DOCUMENT でテキスト抽出 |
-| 6 | `06_create_dynamic_tables_gold.sql` | Dynamic Tables（`GOLD_CONTRACTS` / `GOLD_PAYMENT_SUMMARY`）作成 |
-| 7 | `07_update_semantic_view.sql` | Semantic View を Gold 層参照に更新（パフォーマンス向上） |
+| 0 | `setup_hol.sql` | DB・スキーマ・ステージ・Git連携・PDFコピー |
+| 1 | `01_create_schema_tables.sql` | テーブル定義（5テーブル） |
+| 2 | `02_insert_sample_data.sql` | サンプルデータ投入（顧客3万社・車両2万種・契約20万件・支払い約680万件） |
+| 3 | `03_extract_pdf_text.sql` | PARSE_DOCUMENT で PDF テキスト抽出 → CONTRACT_DOCUMENTS 投入 |
+| 4 | `04_create_cortex_search.sql` | Cortex Search Service（`SEARCH_CONTRACT_DOCS`）作成 |
+| 5 | `05_create_dynamic_tables_gold.sql` | Gold層 Dynamic Tables（`GOLD_CONTRACTS` / `GOLD_PAYMENT_SUMMARY`）作成 |
+| 6 | `06_create_semantic_view.sql` | Semantic View（`LEASE_ANALYTICS`）作成（Gold層参照） |
+| 7 | `07_create_cortex_agent.sql` | Cortex Agent（`LEASE_ANALYST`）作成 |
 
-> **ステップ5について**: `pdfs/` フォルダのサンプルPDF（110件）をステージ `CONTRACT_PDF_STAGE_UNENC` にアップロードした後に実行してください。PDF なしの場合はスキップできます。
+> **ステップ3について**: `setup_hol.sql` の実行により `CONTRACTS_PDF_STAGE` にサンプル PDF がコピー・ディレクトリテーブルがリフレッシュ済みである必要があります。
 
 ## サンプル PDF
 
-`pdfs/` フォルダに Cortex Search のハンズオン（ステップ5）で使用するサンプル PDF を同梱しています。
+`CONTRACTS_PDF_STAGE` ステージに格納されるサンプル PDF の構成：
 
 | フォルダ | 内容 | 件数 |
 |---|---|---|
-| `lease_contracts/` | リース契約書 | 20件 |
-| `vehicle_delivery/` | 車両引渡書 | 20件 |
-| `maintenance_contracts/` | メンテナンス契約書 | 20件 |
-| `insurance_certificates/` | 保険証券 | 20件 |
-| `amendment_agreements/` | リース変更合意書 | 20件 |
-| `irregular/` | 特殊条件契約書（中途解約・走行距離制限・EV充電設備等） | 10件 |
+| `lease_contracts/` | リース契約書 | 26件 |
+| `vehicle_delivery/` | 車両引渡確認書 | 21件 |
+| `maintenance_contracts/` | メンテナンス契約書 | 21件 |
+| `insurance_certificates/` | 保険証券 | 21件 |
+| `amendment_agreements/` | リース変更合意書 | 21件 |
 
-ステージへのアップロード例：
+## 作成されるオブジェクト一覧
 
-```sql
--- ステージ作成
-CREATE STAGE IF NOT EXISTS DEMO_DB.LEASING.CONTRACT_PDF_STAGE_UNENC;
+| オブジェクト | タイプ | 説明 |
+|---|---|---|
+| `HOL_DB.LEASING.CUSTOMERS` | テーブル | 法人顧客マスタ（30,000社） |
+| `HOL_DB.LEASING.VEHICLES` | テーブル | 車両マスタ（20,000種） |
+| `HOL_DB.LEASING.CONTRACTS` | テーブル | リース契約（200,000件） |
+| `HOL_DB.LEASING.PAYMENTS` | テーブル | 月次支払い履歴（約680万件） |
+| `HOL_DB.LEASING.CONTRACT_DOCUMENTS` | テーブル | PDF抽出テキスト |
+| `HOL_DB.LEASING.SEARCH_CONTRACT_DOCS` | Cortex Search Service | 契約書全文検索 |
+| `HOL_DB.LEASING.GOLD_CONTRACTS` | Dynamic Table | 契約×顧客×車両の非正規化テーブル（200,000件） |
+| `HOL_DB.LEASING.GOLD_PAYMENT_SUMMARY` | Dynamic Table | 契約別支払いサマリー（200,000件） |
+| `HOL_DB.LEASING.LEASE_ANALYTICS` | Semantic View | Gold層対象の自然言語分析ビュー |
+| `HOL_DB.LEASING.LEASE_ANALYST` | Cortex Agent | 統合分析エージェント |
 
--- PDF をローカルからアップロード（SnowSQL または Snowsight Files タブから）
-PUT file:///path/to/pdfs/*.pdf @DEMO_DB.LEASING.CONTRACT_PDF_STAGE_UNENC AUTO_COMPRESS=FALSE;
-```
+## Snowflake CoCo を使ったインタラクティブなハンズオン
 
-## Cortex Code を使ったインタラクティブなハンズオン
+`cortex_code_prompts.md` に各ステップの Cortex Code プロンプトが記載されています。
+Snowsight の **CoCo** に貼り付けて実行することで、SQL を手書きせずに環境を構築できます。
 
-`cortex_code_prompts.md` に各ステップの Cortex Code プロンプトが記載されています。  
-Snowsight の **Cortex Code** に貼り付けて実行することで、SQL を手書きせずに環境を構築できます。
-
-### Cortex Code の開き方
+### Snowflake CoCo の開き方
 1. Snowsight にログイン
 2. 左サイドバーの **「Cortex Code」** をクリック
 
 ## 動作確認クエリ例
 
-Agent を Snowflake Intelligence（または REST API）から呼び出して以下の質問を試してみてください：
+Agent を CoWork（Snowflake Intelligence）から呼び出して以下の質問を試してみてください：
 
 - 「業種別のアクティブな契約件数と月額リース料の合計を教えて」
+- 「メーカー別の月額リース料を比較して」
+- 「延滞率が高い顧客トップ10は？」
 - 「トヨタ車のメンテナンス契約の内容を教えて」
-- 「IFRS16のリース会計基準の最新動向は？」
-- 「東京本社支店で延滞が多い業種はどこですか？対策を提案してください」
+- 「2025年の EV リース市場の動向は？」
+- 「延滞率が高い顧客の契約書を確認して、リスク要因を分析してください」

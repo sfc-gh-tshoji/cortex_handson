@@ -1,19 +1,18 @@
 -- ============================================================
--- 05_extract_pdf_text.sql
--- PDFからテキストを抽出し CONTRACT_DOCUMENTS テーブルに追加
+-- 03_extract_pdf_text.sql
+-- CONTRACTS_PDF_STAGEのPDFからテキストを抽出しCONTRACT_DOCUMENTSテーブルに投入
 -- 
 -- 前提:
---   - CONTRACT_PDF_STAGE_UNENC（SNOWFLAKE_SSE暗号化）に110件のPDFが格納済
+--   - CONTRACTS_PDF_STAGE（SNOWFLAKE_SSE暗号化）にPDFファイルが格納済
 --   - PARSE_DOCUMENT はクライアントサイド暗号化ステージ非対応のため
 --     SNOWFLAKE_SSE ステージを使用
 --
--- 使用方法:
---   Snowsight または snow sql で実行
+-- 実行順序: 03（02_insert_sample_data.sql の後、04_create_cortex_search.sql の前に実行）
 -- ============================================================
 
 USE ROLE SYSADMIN;
-USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
-USE SCHEMA DEMO_DB.LEASING;
+USE WAREHOUSE HOL_AD_WH;
+USE SCHEMA HOL_DB.LEASING;
 
 -- ──────────────────────────────────────────────
 -- 1. PDFテキスト抽出結果を格納する一時テーブル
@@ -27,10 +26,10 @@ SELECT
     SPLIT_PART(d.RELATIVE_PATH, '/', 1) AS SUBFOLDER,
     -- PARSE_DOCUMENTでテキスト抽出
     SNOWFLAKE.CORTEX.PARSE_DOCUMENT(
-        @CONTRACT_PDF_STAGE_UNENC,
+        @CONTRACTS_PDF_STAGE,
         d.RELATIVE_PATH
     ):content::VARCHAR AS EXTRACTED_TEXT
-FROM DIRECTORY(@CONTRACT_PDF_STAGE_UNENC) d
+FROM DIRECTORY(@CONTRACTS_PDF_STAGE) d
 WHERE d.RELATIVE_PATH LIKE '%.pdf';
 
 -- 抽出結果の確認
@@ -44,9 +43,9 @@ ORDER BY SUBFOLDER;
 -- ──────────────────────────────────────────────
 CREATE OR REPLACE TEMPORARY TABLE _pdf_with_metadata AS
 SELECT
-    -- DOCUMENT_ID: 既存データ(DOC0010000まで)の続番
+    -- DOCUMENT_ID: 1始まりの連番
     'DOC' || LPAD(
-        (ROW_NUMBER() OVER (ORDER BY p.RELATIVE_PATH) + 10000)::INT::VARCHAR,
+        ROW_NUMBER() OVER (ORDER BY p.RELATIVE_PATH)::INT::VARCHAR,
         7, '0'
     ) AS DOCUMENT_ID,
     -- 契約番号: テキストから「契約番号:」行を正規表現で抽出
@@ -101,16 +100,15 @@ LIMIT 20;
 -- ──────────────────────────────────────────────
 -- 3. CONTRACT_DOCUMENTS テーブルに追加
 -- ──────────────────────────────────────────────
-INSERT INTO CONTRACT_DOCUMENTS (DOCUMENT_ID, CONTRACT_ID, CUSTOMER_NAME, DOCUMENT_TYPE, CONTENT, CREATED_AT)
+INSERT INTO HOL_DB.LEASING.CONTRACT_DOCUMENTS (DOCUMENT_ID, CONTRACT_ID, CUSTOMER_NAME, DOCUMENT_TYPE, CONTENT, CREATED_AT)
 SELECT DOCUMENT_ID, CONTRACT_ID, CUSTOMER_NAME, DOCUMENT_TYPE, CONTENT, CREATED_AT
 FROM _pdf_with_metadata;
 
 -- 挿入結果の確認
 SELECT 
     DOCUMENT_TYPE,
-    COUNT(*) AS cnt,
-    COUNT(CASE WHEN DOCUMENT_ID > 'DOC0010000' THEN 1 END) AS new_rows
-FROM CONTRACT_DOCUMENTS
+    COUNT(*) AS cnt
+FROM HOL_DB.LEASING.CONTRACT_DOCUMENTS
 GROUP BY DOCUMENT_TYPE
 ORDER BY DOCUMENT_TYPE;
 

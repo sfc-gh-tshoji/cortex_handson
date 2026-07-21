@@ -1,31 +1,30 @@
 -- ================================================================================
--- 04_create_semantic_view_agent.sql の Semantic View部分を Gold層参照に更新
--- 実行順序: 07（06_create_dynamic_tables_gold.sql の後に実行）
--- 目的:     LEASE_ANALYTICS Semantic View を Bronze 4テーブル構成から
---           Gold 2テーブル構成（GOLD_CONTRACTS / GOLD_PAYMENT_SUMMARY）に変更する
--- 変更概要: CUSTOMERS / VEHICLES / CONTRACTS / PAYMENTS → GOLD_CONTRACTS / GOLD_PAYMENT_SUMMARY
---           クエリパフォーマンス向上・Horizon Catalog リネージ完全可視化
+-- リース契約分析基盤 — Semantic View 作成（Gold層）
+-- 実行順序: 06（05_create_dynamic_tables_gold.sql の後に実行）
+-- 目的:     LEASE_ANALYTICS Semantic View を Gold 2テーブル構成で作成
+--           - GOLD_CONTRACTS: 契約・顧客・車両を結合済み
+--           - GOLD_PAYMENT_SUMMARY: 契約別支払いサマリー
 -- ================================================================================
 
 USE ROLE SYSADMIN;
-USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
-USE SCHEMA DEMO_DB.LEASING;
+USE WAREHOUSE HOL_AD_WH;
+USE SCHEMA HOL_DB.LEASING;
 
 -- ============================================================
--- Semantic View 更新（Gold層参照）
+-- Semantic View 作成（Gold層参照）
 -- ============================================================
-CREATE OR REPLACE SEMANTIC VIEW DEMO_DB.LEASING.LEASE_ANALYTICS
+CREATE OR REPLACE SEMANTIC VIEW HOL_DB.LEASING.LEASE_ANALYTICS
 
   -- --------------------------------------------------------
   -- テーブル定義（Gold層 2テーブル）
   -- --------------------------------------------------------
   TABLES (
-    gold_contracts AS DEMO_DB.LEASING.GOLD_CONTRACTS
+    gold_contracts AS HOL_DB.LEASING.GOLD_CONTRACTS
       PRIMARY KEY (CONTRACT_ID)
       WITH SYNONYMS ('契約', 'リース契約', '契約データ', 'リース')
       COMMENT = 'Gold層: 契約・顧客・車両を結合したリース契約分析用テーブル',
 
-    gold_payment_summary AS DEMO_DB.LEASING.GOLD_PAYMENT_SUMMARY
+    gold_payment_summary AS HOL_DB.LEASING.GOLD_PAYMENT_SUMMARY
       PRIMARY KEY (CONTRACT_ID)
       WITH SYNONYMS ('支払い', '入金', '支払いサマリー', '月次支払い')
       COMMENT = 'Gold層: 契約別支払いサマリー'
@@ -147,4 +146,4 @@ CREATE OR REPLACE SEMANTIC VIEW DEMO_DB.LEASING.LEASE_ANALYTICS
 -- ============================================================
 -- 検証用クエリ
 -- ============================================================
-SELECT * FROM DEMO_DB.LEASING.LEASE_ANALYTICS LIMIT 3;
+SELECT * FROM HOL_DB.LEASING.LEASE_ANALYTICS LIMIT 3;
