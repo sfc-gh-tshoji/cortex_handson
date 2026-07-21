@@ -11,8 +11,9 @@
 --   Snowsight または snow sql で実行
 -- ============================================================
 
-USE SCHEMA DEMO_DB.LEASING;
+USE ROLE SYSADMIN;
 USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
+USE SCHEMA DEMO_DB.LEASING;
 
 -- ──────────────────────────────────────────────
 -- 1. PDFテキスト抽出結果を格納する一時テーブル
