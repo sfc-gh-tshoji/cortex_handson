@@ -9,11 +9,14 @@
 -- ================================================================================
 
 USE ROLE SYSADMIN;
-USE WAREHOUSE DEMO_WH;
+USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
 
 -- ============================================================
--- 1. スキーマ作成
+-- 1. DB, スキーマ作成
 -- ============================================================
+CREATE DATABASE IF NOT EXISTS DEMO_DB
+  COMMENT = 'リース事業分析ハンズオン用データベース';
+
 CREATE SCHEMA IF NOT EXISTS DEMO_DB.LEASING
   COMMENT = 'リース事業分析ハンズオン用スキーマ';
 
