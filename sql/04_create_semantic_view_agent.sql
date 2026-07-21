@@ -3,7 +3,7 @@
 -- ================================================================================
 
 USE ROLE SYSADMIN;
-USE WAREHOUSE DEMO_WH;
+USE WAREHOUSE SNOWFLAKE_LEARNING_WH;
 USE SCHEMA DEMO_DB.LEASING;
 
 -- ============================================================
