@@ -1,8 +1,8 @@
-# Cortex Code プロンプト集
+# Snowflake CoCo プロンプト集
 
 ## このファイルの使い方
 
-各ステップのプロンプトを Snowsight の **Cortex Code** にコピー＆ペーストして実行します。
+各ステップのプロンプトを Snowsight の **Snowflake CoCo** にコピー＆ペーストして実行します。
 
 **Cortex Code の開き方**:
 1. Snowsight（Snowflake の Web UI）にログイン
